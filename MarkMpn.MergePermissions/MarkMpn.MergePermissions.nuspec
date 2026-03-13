@@ -11,8 +11,9 @@
     <iconUrl>http://markcarrington.dev/merge-permissions-icon/</iconUrl>
     <description>Create or update security roles with all the privileges you need to merge records</description>
     <summary>Merging records requires a complex set of privileges. This tool automatically generates security roles with all the required privileges to remove the guesswork.</summary>
-    <releaseNotes>First release</releaseNotes>
-    <copyright>Copyright © 2021 Mark Carrington</copyright>
+    <releaseNotes>Fixed error with missing privilege ID
+Allow updating roles before metadata cache has loaded</releaseNotes>
+    <copyright>Copyright © 2021-2026 Mark Carrington</copyright>
     <language>en-GB</language>
     <tags>XrmToolBox Merge Permissions Security Privileges</tags>
     <dependencies>
