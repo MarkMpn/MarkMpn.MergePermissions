@@ -355,7 +355,21 @@ namespace MarkMpn.MergePermissions
         {
             // Main entity:
             // Read, Write, Share, AppendTo
-            var entity = ConnectionDetail.MetadataCache.Single(e => e.LogicalName == entityName);
+            EntityMetadata entity;
+
+            if (ConnectionDetail.MetadataCache != null)
+            {
+                entity = ConnectionDetail.MetadataCache.Single(e => e.LogicalName == entityName);
+            }
+            else
+            {
+                var request = new RetrieveEntityRequest
+                {
+                    EntityFilters = (EntityFilters.Entity | EntityFilters.Relationships | EntityFilters.Privileges),
+                    LogicalName = entityName
+                };
+                entity = ((RetrieveEntityResponse)Service.Execute(request)).EntityMetadata;
+            }
 
             AddEntityPrivilege(privileges, entity, PrivilegeType.Read, _depth);
             AddEntityPrivilege(privileges, entity, PrivilegeType.Write, _depth);
@@ -364,6 +378,8 @@ namespace MarkMpn.MergePermissions
 
             // Related entities with Merge Cascade set to Cascade All:
             // Append, Write
+            IEnumerable<EntityMetadata> relatedEntities;
+
             var oneToManyEntities = entity.OneToManyRelationships
                 .Where(r => r.CascadeConfiguration.Merge == CascadeType.Cascade)
                 .Select(r => r.ReferencingEntity);
@@ -371,24 +387,61 @@ namespace MarkMpn.MergePermissions
             var manyToManyEntities = entity.ManyToManyRelationships
                 .Select(r => r.Entity1LogicalName == entityName ? r.Entity2LogicalName : r.Entity1LogicalName);
 
-            var relatedEntities = new HashSet<string>();
-            relatedEntities.AddRange(oneToManyEntities);
-            relatedEntities.AddRange(manyToManyEntities);
+            var relatedEntityNames = new HashSet<string>();
+            relatedEntityNames.AddRange(oneToManyEntities);
+            relatedEntityNames.AddRange(manyToManyEntities);
 
-            // If main entity can have activities, also include all activity types
-            if (entity.HasActivities != false || entity.IsActivityParty != false)
+            if (ConnectionDetail.MetadataCache != null)
             {
-                var activityEntities = ConnectionDetail.MetadataCache
-                    .Where(e => e.IsActivity == true)
-                    .Select(e => e.LogicalName);
+                // If main entity can have activities, also include all activity types
+                if (entity.HasActivities != false || entity.IsActivityParty != false)
+                {
+                    var activityEntities = ConnectionDetail.MetadataCache
+                        .Where(e => e.IsActivity == true)
+                        .Select(e => e.LogicalName);
 
-                relatedEntities.AddRange(activityEntities);
+                    relatedEntityNames.AddRange(activityEntities);
+                }
+
+                relatedEntities = ConnectionDetail.MetadataCache.Where(e => relatedEntityNames.Contains(e.LogicalName));
+            }
+            else
+            {
+                var relatedRequest = new RetrieveMetadataChangesRequest
+                {
+                    Query = new EntityQueryExpression
+                    {
+                        Criteria = new MetadataFilterExpression
+                        {
+                            Conditions =
+                            {
+                                new MetadataConditionExpression(nameof(EntityMetadata.LogicalName), MetadataConditionOperator.In, relatedEntityNames.ToArray())
+                            }
+                        },
+                        Properties = new MetadataPropertiesExpression
+                        {
+                            PropertyNames =
+                            {
+                                nameof(EntityMetadata.LogicalName),
+                                nameof(EntityMetadata.Privileges)
+                            }
+                        }
+                    }
+                };
+
+                // If main entity can have activities, also include all activity types
+                if (entity.HasActivities != false || entity.IsActivityParty != false)
+                {
+                    relatedRequest.Query.Criteria.FilterOperator = LogicalOperator.Or;
+                    relatedRequest.Query.Criteria.Conditions.Add(new MetadataConditionExpression(nameof(EntityMetadata.IsActivity), MetadataConditionOperator.Equals, true));
+                }
+
+                var relatedResponse = (RetrieveMetadataChangesResponse)Service.Execute(relatedRequest);
+                relatedEntities = relatedResponse.EntityMetadata;
             }
 
-            foreach (var relatedEntityName in relatedEntities)
+            foreach (var relatedEntity in relatedEntities)
             {
-                var relatedEntity = ConnectionDetail.MetadataCache.Single(e => e.LogicalName == relatedEntityName);
-
                 AddEntityPrivilege(privileges, relatedEntity, PrivilegeType.Append, _relatedDepth);
                 AddEntityPrivilege(privileges, relatedEntity, PrivilegeType.Write, _relatedDepth);
             }
