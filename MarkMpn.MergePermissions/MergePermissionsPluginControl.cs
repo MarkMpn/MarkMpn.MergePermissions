@@ -225,11 +225,7 @@ namespace MarkMpn.MergePermissions
                     var privileges = new List<RolePrivilege>();
 
                     // Global: Merge
-                    privileges.Add(new RolePrivilege
-                    {
-                        PrivilegeName = "prvMerge",
-                        Depth = PrivilegeDepth.Global
-                    });
+                    privileges.Add(GetMergePrivilege());
 
                     foreach (var entity in entities)
                     {
@@ -282,11 +278,7 @@ namespace MarkMpn.MergePermissions
                         var privileges = new List<RolePrivilege>();
 
                         // Global: Merge
-                        privileges.Add(new RolePrivilege
-                        {
-                            PrivilegeName = "prvMerge",
-                            Depth = PrivilegeDepth.Global
-                        });
+                        privileges.Add(GetMergePrivilege());
 
                         foreach (var entity in entities)
                         {
@@ -343,6 +335,20 @@ namespace MarkMpn.MergePermissions
                     }
                 }
             });
+        }
+
+        private RolePrivilege GetMergePrivilege()
+        {
+            var qry = new QueryExpression("privilege");
+            qry.Criteria.AddCondition("name", ConditionOperator.Equal, "prvMerge");
+            qry.ColumnSet = new ColumnSet("privilegeid");
+            var mergePrivilege = Service.RetrieveMultiple(qry).Entities.Single();
+
+            return new RolePrivilege
+            {
+                PrivilegeId = mergePrivilege.Id,
+                Depth = PrivilegeDepth.Global
+            };
         }
 
         private void AddMergePrivileges(Role role, string entityName, List<RolePrivilege> privileges)
